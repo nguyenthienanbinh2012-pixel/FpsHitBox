@@ -1,868 +1,601 @@
---===================================================================================--
---                             THEPAIN2012 🌿 PREMIUM FPS HUB                         --
---===================================================================================--
-
+-- Services
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local VirtualUser = game:GetService("VirtualUser")
-local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
+
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local Camera = Workspace.CurrentCamera
+local Eventos = ReplicatedStorage:WaitForChild("Eventos", 5)
 
--- Tạo ScreenGui để dựng giao diện bo góc tùy biến theo yêu cầu
-local CoreGui = game:GetService("CoreGui")
-local MainGui = Instance.new("ScreenGui")
-MainGui.Name = "ThePain2012_FPSHub"
-MainGui.Parent = CoreGui
+----------------------------------------------------
+-- CẤU HÌNH TRẠNG THÁI (SETTINGS)
+----------------------------------------------------
+local Settings = {
+    AutoKill = false,
+    NoReload = false,
+    FastParachute = false,
+    ESP = false,
+    AimFOV = false,
+    SpeedHack = false,
+    SpeedValue = 40,
+    FOVRadius = 100
+}
 
--- Biến cấu hình trạng thái
-local KeySystemActive = true
-local PremiumUnlocked = false
-local HitboxLocked = true  
-local SpeedEnabled = false
-local JumpEnabled = false
-local NoclipEnabled = false
-local InfJumpEnabled = false
-local HitboxEnabled = false
-local HitboxSize = 50
-local ESPEnabled = false
-local SpinAuraEnabled = false
-local ThanhDieuCam = false
-local AimMode = "aimBody"
-local AimbotActive = false
-local SuperWinEnabled = false
-local GunRainbowEnabled = false
-local GhostEnabled = false
+----------------------------------------------------
+-- 1. TẠO GIAO DIỆN HIỆN ĐẠI (MODERN MOBILE UI)
+----------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "UltraCheatHub_V2"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- Biến lưu trữ số lượng Player đã loại bỏ và mục tiêu khóa SuperWin cố định
-local KillsCounter = 0
-local CurrentSuperWinTarget = nil
+-- Màn hình đếm ESP & BOT (Top Center)
+local CounterLabel = Instance.new("TextLabel")
+CounterLabel.Size = UDim2.new(0, 280, 0, 35)
+CounterLabel.Position = UDim2.new(0.5, -140, 0, 15)
+CounterLabel.BackgroundTransparency = 1
+CounterLabel.Font = Enum.Font.FredokaOne
+CounterLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
+CounterLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+CounterLabel.TextStrokeTransparency = 0
+CounterLabel.TextSize = 20
+CounterLabel.Text = "PLAYERS: 0 | BOTS: 0"
+CounterLabel.Visible = false
+CounterLabel.Parent = ScreenGui
 
--- Tạo nhãn hiển thị PlayerKiller ở trên cùng giữa màn hình
-local PlayerKillerLabel = Instance.new("TextLabel")
-PlayerKillerLabel.Size = UDim2.new(0, 300, 0, 40)
-PlayerKillerLabel.Position = UDim2.new(0.5, -150, 0, 10)
-PlayerKillerLabel.BackgroundTransparency = 1
-PlayerKillerLabel.Text = "PlayerKiller: [" .. KillsCounter .. "]"
-PlayerKillerLabel.TextColor3 = Color3.fromRGB(0, 191, 255)
-PlayerKillerLabel.TextSize = 24
-PlayerKillerLabel.Font = Enum.Font.SourceSansBold
-PlayerKillerLabel.Parent = MainGui
+-- Vòng tròn Aim FOV
+local FOVCircle = Instance.new("Frame")
+FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+FOVCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
+FOVCircle.BackgroundTransparency = 1
+FOVCircle.BorderColor3 = Color3.fromRGB(0, 255, 170)
+FOVCircle.BorderSizePixel = 1.5
+FOVCircle.Visible = false
+FOVCircle.Parent = ScreenGui
 
-local KillerStroke = Instance.new("UIStroke")
-KillerStroke.Color = Color3.fromRGB(0, 0, 0)
-KillerStroke.Thickness = 2
-KillerStroke.Parent = PlayerKillerLabel
+local UICornerCircle = Instance.new("UICorner")
+UICornerCircle.CornerRadius = UDim.new(1, 0)
+UICornerCircle.Parent = FOVCircle
 
--- watermark góc phải
-local Watermark = Instance.new("TextLabel")
-Watermark.Size = UDim2.new(0, 200, 0, 30)
-Watermark.Position = UDim2.new(1, -210, 0, 10)
-Watermark.BackgroundTransparency = 1
-Watermark.Text = "ThePain2012🌿"
-Watermark.TextSize = 16
-Watermark.Font = Enum.Font.SourceSansBold
-Watermark.TextColor3 = Color3.fromRGB(255, 255, 255)
-Watermark.Parent = MainGui
+-- NÚT NỔI BẬT TẮT MENU (TOGGLE HUB BUTTON)
+local ToggleMenuBtn = Instance.new("TextButton")
+ToggleMenuBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleMenuBtn.Position = UDim2.new(0.02, 0, 0.2, 0)
+ToggleMenuBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+ToggleMenuBtn.Text = "HUB"
+ToggleMenuBtn.TextColor3 = Color3.fromRGB(0, 255, 170)
+ToggleMenuBtn.Font = Enum.Font.GothamBold
+ToggleMenuBtn.TextSize = 14
+ToggleMenuBtn.Parent = ScreenGui
 
-task.spawn(function()
-    while task.wait(0.1) do
-        for i = 0, 1, 0.05 do
-            Watermark.TextColor3 = Color3.fromHSV(i, 1, 1)
-            task.wait(0.05)
-        end
-    end
-end)
+local OpenBtnCorner = Instance.new("UICorner")
+OpenBtnCorner.CornerRadius = UDim.new(0, 12)
+OpenBtnCorner.Parent = ToggleMenuBtn
 
--- Khung Menu Chính (Đã tăng chiều dọc từ 260 lên 340 để cân xứng giao diện diện rộng)
-local MainWindow = Instance.new("Frame")
-MainWindow.Size = UDim2.new(0, 680, 0, 340)
-MainWindow.Position = UDim2.new(0.5, -340, 0.5, -170)
-MainWindow.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MainWindow.BorderSizePixel = 0
-MainWindow.ClipsDescendants = false
-MainWindow.Parent = MainGui
+local OpenBtnStroke = Instance.new("UIStroke")
+OpenBtnStroke.Color = Color3.fromRGB(0, 255, 170)
+OpenBtnStroke.Thickness = 2
+OpenBtnStroke.Parent = ToggleMenuBtn
+
+-- Frame Chính (Wide Window)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 340, 0, 380) -- Rộng hơn để chứa vừa vặn các item
+MainFrame.Position = UDim2.new(0.5, -170, 0.5, -190)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
-MainCorner.Parent = MainWindow
+MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.Parent = MainFrame
 
 local MainStroke = Instance.new("UIStroke")
-MainStroke.Color = Color3.fromRGB(144, 238, 144)
-MainStroke.Thickness = 2
-MainStroke.Parent = MainWindow
+MainStroke.Color = Color3.fromRGB(40, 40, 60)
+MainStroke.Thickness = 1.5
+MainStroke.Parent = MainFrame
 
--- Kéo thả Menu
-local dragging, dragInput, dragStart, startPos
-MainWindow.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainWindow.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-MainWindow.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        MainWindow.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
+-- Thanh Tiêu Đề
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 42)
+TitleBar.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
+TitleBar.Parent = MainFrame
 
--- NÚT TOGGLE DI ĐỘNG CÓ ANIMATION MƯỢT
-local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Size = UDim2.new(0, 45, 0, 45)
-ToggleBtn.Position = UDim2.new(0, 15, 0, 15)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-ToggleBtn.Text = "🌿"
-ToggleBtn.TextColor3 = Color3.fromRGB(144, 238, 144)
-ToggleBtn.TextSize = 20
-ToggleBtn.Font = Enum.Font.SourceSansBold
-ToggleBtn.Parent = MainGui
+local TitleBarCorner = Instance.new("UICorner")
+TitleBarCorner.CornerRadius = UDim.new(0, 14)
+TitleBarCorner.Parent = TitleBar
 
-local ToggleCorner = Instance.new("UICorner")
-ToggleCorner.CornerRadius = UDim.new(1, 0)
-ToggleCorner.Parent = ToggleBtn
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, -50, 1, 0)
+TitleText.Position = UDim2.new(0, 14, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "PREMIUM VIP HUB v2"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 14
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
 
-local ToggleStroke = Instance.new("UIStroke")
-ToggleStroke.Color = Color3.fromRGB(144, 238, 144)
-ToggleStroke.Thickness = 1.5
-ToggleStroke.Parent = ToggleBtn
+-- Nút đóng menu (Close Button X)
+local CloseMenuBtn = Instance.new("TextButton")
+CloseMenuBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseMenuBtn.Position = UDim2.new(1, -36, 0, 6)
+CloseMenuBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+CloseMenuBtn.Text = "✕"
+CloseMenuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseMenuBtn.Font = Enum.Font.GothamBold
+CloseMenuBtn.TextSize = 14
+CloseMenuBtn.Parent = TitleBar
 
-local tDragging, tDragInput, tDragStart, tStartPos
-ToggleBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        tDragging = true
-        tDragStart = input.Position
-        tStartPos = ToggleBtn.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then tDragging = false end
-        end)
-    end
-end)
-ToggleBtn.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        tDragInput = input
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if input == tDragInput and tDragging then
-        local delta = input.Position - tDragStart
-        ToggleBtn.Position = UDim2.new(tStartPos.X.Scale, tStartPos.X.Offset + delta.X, tStartPos.Y.Scale, tStartPos.Y.Offset + delta.Y)
-    end
-end)
+local CloseBtnCorner = Instance.new("UICorner")
+CloseBtnCorner.CornerRadius = UDim.new(0, 8)
+CloseBtnCorner.Parent = CloseMenuBtn
 
-local MenuVisible = true
-local function ToggleMenuAnimation()
-    MenuVisible = not MenuVisible
-    local targetSize = MenuVisible and UDim2.new(0, 680, 0, 340) or UDim2.new(0, 680, 0, 0)
-    
-    if MenuVisible then 
-        MainWindow.ClipsDescendants = true
-        MainWindow.Visible = true
-        Watermark.Visible = true
-        PlayerKillerLabel.Visible = true
-    else
-        Watermark.Visible = false
-        PlayerKillerLabel.Visible = false
-    end
-    
-    local tween = TweenService:Create(MainWindow, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize})
-    tween:Play()
-    
-    tween.Completed:Connect(function()
-        if not MenuVisible then 
-            MainWindow.Visible = false 
-        else
-            MainWindow.ClipsDescendants = false
+-- Scrolling Container
+local ContentScroll = Instance.new("ScrollingFrame")
+ContentScroll.Size = UDim2.new(1, -16, 1, -52)
+ContentScroll.Position = UDim2.new(0, 8, 0, 48)
+ContentScroll.BackgroundTransparency = 1
+ContentScroll.CanvasSize = UDim2.new(0, 0, 0, 420)
+ContentScroll.ScrollBarThickness = 3
+ContentScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 170)
+ContentScroll.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.Parent = ContentScroll
+
+----------------------------------------------------
+-- LOGIC KÉO THẢ MƯỢT MÀ (DRAGGABLE)
+----------------------------------------------------
+local function MakeDraggable(guiObject)
+    local dragging, dragInput, dragStart, startPos
+    guiObject.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObject.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    guiObject.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
 end
 
-ToggleBtn.MouseButton1Click:Connect(ToggleMenuAnimation)
+MakeDraggable(MainFrame)
+MakeDraggable(ToggleMenuBtn)
 
-local function CreateFloatingParticles(parent)
-    for i = 1, 8 do
-        local part = Instance.new("Frame")
-        part.Size = UDim2.new(0, math.random(6, 12), 0, math.random(6, 12))
-        part.BackgroundColor3 = Color3.fromRGB(144, 238, 144)
-        part.BackgroundTransparency = 0.7
-        part.BorderSizePixel = 0
-        part.Parent = parent
+ToggleMenuBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+CloseMenuBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+end)
+
+----------------------------------------------------
+-- 2. CÁC HÀM TẠO WIDGET (TOGGLE / BUTTON / SLIDER)
+----------------------------------------------------
+local function CreateToggle(name, settingKey, callback)
+    local ItemContainer = Instance.new("Frame")
+    ItemContainer.Size = UDim2.new(1, 0, 0, 40)
+    ItemContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+    ItemContainer.Parent = ContentScroll
+
+    local ItemCorner = Instance.new("UICorner")
+    ItemCorner.CornerRadius = UDim.new(0, 8)
+    ItemCorner.Parent = ItemContainer
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0.68, 0, 1, 0)
+    Label.Position = UDim2.new(0, 12, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(230, 230, 240)
+    Label.Font = Enum.Font.GothamSemibold
+    Label.TextSize = 13
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ItemContainer
+
+    local SwitchBg = Instance.new("TextButton")
+    SwitchBg.Size = UDim2.new(0, 46, 0, 22)
+    SwitchBg.Position = UDim2.new(1, -56, 0.5, -11)
+    SwitchBg.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    SwitchBg.Text = ""
+    SwitchBg.Parent = ItemContainer
+
+    local SwitchCorner = Instance.new("UICorner")
+    SwitchCorner.CornerRadius = UDim.new(1, 0)
+    SwitchCorner.Parent = SwitchBg
+
+    local SwitchDot = Instance.new("Frame")
+    SwitchDot.Size = UDim2.new(0, 18, 0, 18)
+    SwitchDot.Position = UDim2.new(0, 2, 0.5, -9)
+    SwitchDot.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+    SwitchDot.Parent = SwitchBg
+
+    local DotCorner = Instance.new("UICorner")
+    DotCorner.CornerRadius = UDim.new(1, 0)
+    DotCorner.Parent = SwitchDot
+
+    SwitchBg.MouseButton1Click:Connect(function()
+        Settings[settingKey] = not Settings[settingKey]
+        local active = Settings[settingKey]
         
-        local pCorner = Instance.new("UICorner")
-        pCorner.CornerRadius = UDim.new(0, math.random(0, 4))
-        pCorner.Parent = part
-
-        task.spawn(function()
-            while task.wait() do
-                if parent.Visible and parent.BackgroundTransparency < 1 then
-                    part.Visible = true
-                    part.Position = UDim2.new(math.random(0, 1), math.random(-10, 10), math.random(0, 1), math.random(-10, 10))
-                    local tx = math.random(0, 100)/100
-                    local ty = math.random(0, 100)/100
-                    TweenService:Create(part, TweenInfo.new(5, Enum.EasingStyle.Linear), {Position = UDim2.new(tx, 0, ty, 0), Rotation = math.random(0, 360)}):Play()
-                else
-                    part.Visible = false
-                end
-                task.wait(5)
-            end
-        end)
-    end
-end
-CreateFloatingParticles(MainWindow)
-
---===================================================================================--
---                                 GIAO DIỆN HỆ THỐNG KEY                            --
---===================================================================================--
-local KeyFrame = Instance.new("Frame")
-KeyFrame.Size = UDim2.new(1, 0, 1, 0)
-KeyFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-KeyFrame.Parent = MainWindow
-KeyFrame.ZIndex = 10
-
-local KeyCorner = Instance.new("UICorner")
-KeyCorner.CornerRadius = UDim.new(0, 12)
-KeyCorner.Parent = KeyFrame
-
-local HintLabel = Instance.new("TextLabel")
-HintLabel.Size = UDim2.new(1, 0, 0, 30)
-HintLabel.Position = UDim2.new(0, 0, 0.2, 0)
-HintLabel.Text = "Gợi ý: 11 + 1 + 2000 = ?"
-HintLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-HintLabel.TextSize = 16
-HintLabel.Font = Enum.Font.SourceSans
-HintLabel.BackgroundTransparency = 1
-HintLabel.Parent = KeyFrame
-HintLabel.ZIndex = 10
-
-local KeyInput = Instance.new("TextBox")
-KeyInput.Size = UDim2.new(0, 200, 0, 35)
-KeyInput.Position = UDim2.new(0.5, -100, 0.4, 0)
-KeyInput.PlaceholderText = "Nhập Key tại đây..."
-KeyInput.Text = ""
-KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-KeyInput.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-KeyInput.Parent = KeyFrame
-KeyInput.ZIndex = 10
-
-local CheckKeyBtn = Instance.new("TextButton")
-CheckKeyBtn.Size = UDim2.new(0, 120, 0, 35)
-CheckKeyBtn.Position = UDim2.new(0.5, -60, 0.65, 0)
-CheckKeyBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-CheckKeyBtn.Text = "Check Key"
-CheckKeyBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
-CheckKeyBtn.Font = Enum.Font.SourceSansBold
-CheckKeyBtn.TextSize = 15
-CheckKeyBtn.Parent = KeyFrame
-CheckKeyBtn.ZIndex = 10
-
-local function StartLoading()
-    HintLabel.Visible = false
-    KeyInput.Visible = false
-    CheckKeyBtn.Visible = false
-    
-    local LeafPattern = Instance.new("TextLabel")
-    LeafPattern.Size = UDim2.new(1, 0, 0, 40)
-    LeafPattern.Position = UDim2.new(0, 0, 0.3, 0)
-    LeafPattern.Text = "🌿 AimFpsPremium 🌿"
-    LeafPattern.TextColor3 = Color3.fromRGB(144, 238, 144)
-    LeafPattern.TextSize = 22
-    LeafPattern.Font = Enum.Font.SourceSansBold
-    LeafPattern.BackgroundTransparency = 1
-    LeafPattern.Parent = KeyFrame
-    
-    local LoadLabel = Instance.new("TextLabel")
-    LoadLabel.Size = UDim2.new(1, 0, 0, 30)
-    LoadLabel.Position = UDim2.new(0, 0, 0.55, 0)
-    LoadLabel.Text = "0%"
-    LoadLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    LoadLabel.TextSize = 18
-    LoadLabel.BackgroundTransparency = 1
-    LoadLabel.Parent = KeyFrame
-
-    for i = 1, 100 do
-        LoadLabel.Text = "Loading: " .. i .. "%"
-        task.wait(6 / 100)
-    end
-    
-    KeyFrame.Visible = false
-    KeySystemActive = false
-end
-
-CheckKeyBtn.MouseButton1Click:Connect(function()
-    if KeyInput.Text == "2012" then
-        CheckKeyBtn.Text = "ĐÚNG"
-        task.wait(0.5)
-        StartLoading()
-    else
-        CheckKeyBtn.Text = "SAI! Thử lại"
-        task.wait(1)
-        CheckKeyBtn.Text = "Check Key"
-    end
-end)
-
---===================================================================================--
---                                     BẢNG TABS CHỨC NĂNG                           --
---===================================================================================--
-local LeftTab = Instance.new("Frame")
-LeftTab.Size = UDim2.new(0, 320, 1, -40)
-LeftTab.Position = UDim2.new(0, 10, 0, 30)
-LeftTab.BackgroundTransparency = 1
-LeftTab.Parent = MainWindow
-
-local Separator = Instance.new("Frame")
-Separator.Size = UDim2.new(0, 2, 1, -40)
-Separator.Position = UDim2.new(0.5, -1, 0, 30)
-Separator.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-Separator.BorderSizePixel = 0
-Separator.Parent = MainWindow
-
-local RightTab = Instance.new("Frame")
-RightTab.Size = UDim2.new(0, 320, 1, -40)
-RightTab.Position = UDim2.new(0.5, 10, 0, 30)
-RightTab.BackgroundTransparency = 1
-RightTab.Parent = MainWindow
-
-local TitleL = Instance.new("TextLabel")
-TitleL.Size = UDim2.new(1, 0, 0, 20)
-TitleL.Text = "⚡ TỐI ƯU DI CHUYỂN"
-TitleL.TextColor3 = Color3.fromRGB(144, 238, 144)
-TitleL.TextSize = 13
-TitleL.Font = Enum.Font.SourceSansBold
-TitleL.TextXAlignment = Enum.TextXAlignment.Left
-TitleL.BackgroundTransparency = 1
-TitleL.Parent = LeftTab
-
-local TitleR = Instance.new("TextLabel")
-TitleR.Size = UDim2.new(1, 0, 0, 20)
-TitleR.Text = "🎯 CHIẾN ĐẤU & HITBOX"
-TitleR.TextColor3 = Color3.fromRGB(144, 238, 144)
-TitleR.TextSize = 13
-TitleR.Font = Enum.Font.SourceSansBold
-TitleR.TextXAlignment = Enum.TextXAlignment.Left
-TitleR.BackgroundTransparency = 1
-TitleR.Parent = RightTab
-
-local function CreateCheckBox(name, pos, parent, callback, customColor)
-    local checkColor = customColor or Color3.fromRGB(0, 255, 0)
-    local boxBtn = Instance.new("TextButton")
-    boxBtn.Size = UDim2.new(0, 18, 0, 18)
-    boxBtn.Position = pos
-    boxBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-    boxBtn.Text = ""
-    boxBtn.Parent = parent
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0, 250, 0, 18)
-    label.Position = pos + UDim2.new(0, 25, 0, 0)
-    label.Text = name
-    label.TextColor3 = customColor or Color3.fromRGB(230, 230, 230)
-    label.TextSize = 13
-    label.Font = Enum.Font.SourceSans
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.BackgroundTransparency = 1
-    label.Parent = parent
-
-    local active = false
-    boxBtn.MouseButton1Click:Connect(function()
-        active = not active
-        boxBtn.BackgroundColor3 = active and checkColor or Color3.fromRGB(70, 70, 70)
-        callback(active)
+        SwitchBg.BackgroundColor3 = active and Color3.fromRGB(0, 200, 120) or Color3.fromRGB(45, 45, 60)
+        SwitchDot.Position = active and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
+        SwitchDot.BackgroundColor3 = active and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        
+        if callback then callback(active) end
     end)
-    return boxBtn, label
 end
 
---===================================================================================--
---                               LOGIC CHỨC NĂNG LEFT TAB                            --
---===================================================================================--
-CreateCheckBox("Boost Speed (Tốc độ 30)", UDim2.new(0, 5, 0, 30), LeftTab, function(val) SpeedEnabled = val end)
-CreateCheckBox("Jump Boost (Nhảy cao 70)", UDim2.new(0, 5, 0, 55), LeftTab, function(val) JumpEnabled = val end)
-CreateCheckBox("Bỏ qua vật cản (Đi xuyên vật thể)", UDim2.new(0, 5, 0, 80), LeftTab, function(val) NoclipEnabled = val end)
-CreateCheckBox("Infinite Jump (Nhảy vô hạn)", UDim2.new(0, 5, 0, 105), LeftTab, function(val) InfJumpEnabled = val end)
-CreateCheckBox("Spin 99 Aura (Xoay 120°)", UDim2.new(0, 5, 0, 130), LeftTab, function(val) SpinAuraEnabled = val end)
+local function CreateButton(name, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 0, 40)
+    Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+    Btn.Text = name
+    Btn.TextColor3 = Color3.fromRGB(0, 255, 170)
+    Btn.Font = Enum.Font.GothamBold
+    Btn.TextSize = 13
+    Btn.Parent = ContentScroll
 
-local HopServerBtn = Instance.new("TextButton")
-HopServerBtn.Size = UDim2.new(0, 140, 0, 25)
-HopServerBtn.Position = UDim2.new(0, 5, 0, 160)
-HopServerBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-HopServerBtn.Text = "🔄 Hop Server"
-HopServerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-HopServerBtn.Font = Enum.Font.SourceSansBold
-HopServerBtn.TextSize = 13
-HopServerBtn.Parent = LeftTab
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Btn
 
-local HopCorner = Instance.new("UICorner")
-HopCorner.CornerRadius = UDim.new(0, 6)
-HopCorner.Parent = HopServerBtn
+    Btn.MouseButton1Click:Connect(callback)
+end
 
-HopServerBtn.MouseButton1Click:Connect(function()
-    HopServerBtn.Text = "Đang tìm Server..."
-    pcall(function()
-        local serverList = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
-        for _, server in pairs(serverList.data) do
-            if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
-                break
-            end
-        end
-    end)
-    task.wait(2)
-    HopServerBtn.Text = "Thử lại!"
-    task.wait(1)
-    HopServerBtn.Text = "🔄 Hop Server"
-end)
+-- Slider FOV
+local SliderFrame = Instance.new("Frame")
+SliderFrame.Size = UDim2.new(1, 0, 0, 50)
+SliderFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+SliderFrame.Parent = ContentScroll
 
-RunService.Stepped:Connect(function()
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") then
-        if SpeedEnabled then char.Humanoid.WalkSpeed = 30 end
-        if JumpEnabled then char.Humanoid.JumpPower = 70 end
-        if NoclipEnabled then
-            for _, part in pairs(char:GetChildren()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
-            end
-        end
-        if SpinAuraEnabled and char:FindFirstChild("HumanoidRootPart") then
-            char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame * CFrame.Angles(0, math.rad(120), 0)
-        end
-    end
-end)
-
-UserInputService.JumpRequest:Connect(function()
-    if InfJumpEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-        LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
-    end
-end)
-
---===================================================================================--
---                               LOGIC CHỨC NĂNG RIGHT TAB                           --
---===================================================================================--
-local HitboxLockBtn = Instance.new("TextButton")
-HitboxLockBtn.Size = UDim2.new(0, 18, 0, 18)
-HitboxLockBtn.Position = UDim2.new(0, 5, 0, 30)
-HitboxLockBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-HitboxLockBtn.Text = "🔒"
-HitboxLockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-HitboxLockBtn.Parent = RightTab
-
-local _, HitboxLabel = CreateCheckBox("Kích hoạt Hitbox Khối vuông", UDim2.new(0, 30, 0, 30), RightTab, function(val)
-    if not HitboxLocked then HitboxEnabled = val end
-end)
-HitboxLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
-
-HitboxLockBtn.MouseButton1Click:Connect(function()
-    if HitboxLocked then
-        HitboxLocked = false
-        HitboxLockBtn.Text = "🔓"
-        HitboxLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
-    end
-end)
+local SliderCorner = Instance.new("UICorner")
+SliderCorner.CornerRadius = UDim.new(0, 8)
+SliderCorner.Parent = SliderFrame
 
 local SliderLabel = Instance.new("TextLabel")
-SliderLabel.Size = UDim2.new(0, 200, 0, 15)
-SliderLabel.Position = UDim2.new(0, 5, 0, 55)
-SliderLabel.Text = "Độ rộng khối: 50 studs"
-SliderLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SliderLabel.Size = UDim2.new(1, -20, 0, 20)
+SliderLabel.Position = UDim2.new(0, 12, 0, 4)
+SliderLabel.BackgroundTransparency = 1
+SliderLabel.Text = "FOV Radius: 100"
+SliderLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
+SliderLabel.Font = Enum.Font.GothamSemibold
 SliderLabel.TextSize = 12
 SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
-SliderLabel.BackgroundTransparency = 1
-SliderLabel.Parent = RightTab
+SliderLabel.Parent = SliderFrame
 
-local SliderBar = Instance.new("TextButton")
-SliderBar.Size = UDim2.new(0, 180, 0, 8)
-SliderBar.Position = UDim2.new(0, 5, 0, 75)
-SliderBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-SliderBar.Text = ""
-SliderBar.Parent = RightTab
+local SliderTrack = Instance.new("TextButton")
+SliderTrack.Size = UDim2.new(1, -24, 0, 8)
+SliderTrack.Position = UDim2.new(0, 12, 0, 30)
+SliderTrack.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+SliderTrack.Text = ""
+SliderTrack.Parent = SliderFrame
+
+local TrackCorner = Instance.new("UICorner")
+TrackCorner.CornerRadius = UDim.new(1, 0)
+TrackCorner.Parent = SliderTrack
 
 local SliderFill = Instance.new("Frame")
-SliderFill.Size = UDim2.new(0.41, 0, 1, 0)
-SliderFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+SliderFill.Size = UDim2.new((100 - 15)/(200 - 15), 0, 1, 0)
+SliderFill.BackgroundColor3 = Color3.fromRGB(0, 255, 170)
 SliderFill.BorderSizePixel = 0
-SliderFill.Parent = SliderBar
+SliderFill.Parent = SliderTrack
 
-local sliding = false
-local function UpdateSlider(input)
-    if HitboxLocked then return end
-    local relativeX = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
-    HitboxSize = math.floor(10 + (relativeX * 110))
-    SliderFill.Size = UDim2.new(relativeX, 0, 1, 0)
-    SliderLabel.Text = "Độ rộng khối: " .. HitboxSize .. " studs"
-end
-SliderBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then 
-        sliding = true 
-        UpdateSlider(input) 
-    end
+local FillCorner = Instance.new("UICorner")
+FillCorner.CornerRadius = UDim.new(1, 0)
+FillCorner.Parent = SliderFill
+
+-- Khởi tạo các Toggles & Buttons
+CreateToggle("Auto Kill (All Map)", "AutoKill")
+CreateToggle("Silent Aim (WallCheck)", "AimFOV", function(val) FOVCircle.Visible = val end)
+CreateToggle("ESP Line & Info", "ESP", function(val) CounterLabel.Visible = val end)
+CreateToggle("Speed Boost (Speed: 40)", "SpeedHack")
+CreateToggle("No Reload Delay", "NoReload")
+CreateToggle("Fast Parachute Drop", "FastParachute")
+
+CreateButton("🌐 Hop Server (Đổi Server)", function()
+    local placeId = game.PlaceId
+    TeleportService:Teleport(placeId, LocalPlayer)
 end)
-UserInputService.InputChanged:Connect(function(input)
-    if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then 
-        UpdateSlider(input) 
-    end
+
+-- Logic Slider FOV
+local sliding = false
+SliderTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then sliding = true end
 end)
 UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then 
-        sliding = false 
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then sliding = false end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local relative = math.clamp((input.Position.X - SliderTrack.AbsolutePosition.X) / SliderTrack.AbsoluteSize.X, 0, 1)
+        local value = math.floor(15 + relative * (200 - 15))
+        Settings.FOVRadius = value
+        SliderFill.Size = UDim2.new(relative, 0, 1, 0)
+        SliderLabel.Text = "FOV Radius: " .. tostring(value)
+        FOVCircle.Size = UDim2.new(0, value * 2, 0, value * 2)
+    end
+end)
+FOVCircle.Size = UDim2.new(0, Settings.FOVRadius * 2, 0, Settings.FOVRadius * 2)
+
+----------------------------------------------------
+-- 3. SPEED HACK LOGIC (CỐ ĐỊNH SPEED 40)
+----------------------------------------------------
+RunService.Stepped:Connect(function()
+    if Settings.SpeedHack and LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = Settings.SpeedValue
+        end
     end
 end)
 
-CreateCheckBox("ESP Player (Dây xanh, Khung trắng, Tên hồng)", UDim2.new(0, 5, 0, 90), RightTab, function(val) ESPEnabled = val end)
+----------------------------------------------------
+-- 4. HÀM RAYCAST WALLCHECK
+----------------------------------------------------
+local function IsVisible(targetPart)
+    local origin = Camera.CFrame.Position
+    local destination = targetPart.Position
+    local direction = (destination - origin)
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
+    raycastParams.IgnoreWater = true
 
---===================================================================================--
---                        MỤC PREMIUM & HỆ THỐNG KEY PREMIUM MÀU TÍM                  --
----===================================================================================--
---                        MỤC PREMIUM & HỆ THỐNG KEY PREMIUM MÀU TÍM                  --
---===================================================================================--
-local PremiumTriggerBtn = Instance.new("TextButton")
-PremiumTriggerBtn.Size = UDim2.new(0, 180, 0, 25)
-PremiumTriggerBtn.Position = UDim2.new(0, 5, 0, 115)
-PremiumTriggerBtn.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
-PremiumTriggerBtn.Text = "⭐ Chức năng Premium ⭐"
-PremiumTriggerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-PremiumTriggerBtn.Font = Enum.Font.SourceSansBold
-PremiumTriggerBtn.TextSize = 13
-PremiumTriggerBtn.Parent = RightTab
+    local result = Workspace:Raycast(origin, direction, raycastParams)
+    return result == nil
+end
 
-local PremCorner = Instance.new("UICorner")
-PremCorner.CornerRadius = UDim.new(0, 6)
-PremCorner.Parent = PremiumTriggerBtn
+----------------------------------------------------
+-- 5. LẤY TARGET TRONG VÒNG FOV
+----------------------------------------------------
+local function GetClosestTargetInFOV()
+    local closestTarget = nil
+    local shortestDistance = Settings.FOVRadius
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
-local PremiumKeyFrame = Instance.new("Frame")
-PremiumKeyFrame.Size = UDim2.new(1, 0, 1, 0)
-PremiumKeyFrame.BackgroundColor3 = Color3.fromRGB(15, 10, 20)
-PremiumKeyFrame.BorderSizePixel = 0
-PremiumKeyFrame.Visible = false
-PremiumKeyFrame.ZIndex = 11
-PremiumKeyFrame.Parent = MainWindow
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local targetChar = player.Character
+            local targetHitbox = targetChar:FindFirstChild("Head") or targetChar:FindFirstChild("HumanoidRootPart")
+            local humanoid = targetChar:FindFirstChildOfClass("Humanoid")
 
-local PremKeyCorner = Instance.new("UICorner")
-PremKeyCorner.CornerRadius = UDim.new(0, 12)
-PremKeyCorner.Parent = PremiumKeyFrame
+            if targetHitbox and humanoid and humanoid.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetHitbox.Position)
+                if onScreen then
+                    local targetPos2D = Vector2.new(screenPos.X, screenPos.Y)
+                    local distance = (targetPos2D - screenCenter).Magnitude
 
-local PremKeyStroke = Instance.new("UIStroke")
-PremKeyStroke.Color = Color3.fromRGB(147, 112, 219)
-PremKeyStroke.Thickness = 2
-PremKeyStroke.Parent = PremiumKeyFrame
-
-local PremHintLabel = Instance.new("TextLabel")
-PremHintLabel.Size = UDim2.new(1, 0, 0, 30)
-PremHintLabel.Position = UDim2.new(0, 0, 0.15, 0)
-PremHintLabel.Text = "HỆ THỐNG XÁC THỰC KEY PREMIUM"
-PremHintLabel.TextColor3 = Color3.fromRGB(186, 85, 211)
-PremHintLabel.TextSize = 16
-PremHintLabel.Font = Enum.Font.SourceSansBold
-PremHintLabel.BackgroundTransparency = 1
-PremHintLabel.ZIndex = 11
-PremHintLabel.Parent = PremiumKeyFrame
-
-local PremKeyInput = Instance.new("TextBox")
-PremKeyInput.Size = UDim2.new(0, 220, 0, 35)
-PremKeyInput.Position = UDim2.new(0.5, -110, 0.38, 0)
-PremKeyInput.PlaceholderText = "Nhập Key Premium tại đây..."
-PremKeyInput.Text = ""
-PremKeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-PremKeyInput.BackgroundColor3 = Color3.fromRGB(35, 25, 45)
-PremKeyInput.ZIndex = 11
-PremKeyInput.Parent = PremiumKeyFrame
-
-local CheckPremBtn = Instance.new("TextButton")
-CheckPremBtn.Size = UDim2.new(0, 130, 0, 35)
-CheckPremBtn.Position = UDim2.new(0.5, -65, 0.65, 0)
-CheckPremBtn.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
-CheckPremBtn.Text = "Kích Hoạt Premium"
-CheckPremBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-CheckPremBtn.Font = Enum.Font.SourceSansBold
-CheckPremBtn.TextSize = 14
-CheckPremBtn.ZIndex = 11
-CheckPremBtn.Parent = CheckPremBtn.Parent or PremiumKeyFrame
-
-local CheckPremCorner = Instance.new("UICorner")
-CheckPremCorner.CornerRadius = UDim.new(0, 6)
-CheckPremCorner.Parent = CheckPremBtn
-
-local ClosePremBtn = Instance.new("TextButton")
-ClosePremBtn.Size = UDim2.new(0, 25, 0, 25)
-ClosePremBtn.Position = UDim2.new(1, -30, 0, 5)
-ClosePremBtn.BackgroundTransparency = 1
-ClosePremBtn.Text = "✕"
-ClosePremBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-ClosePremBtn.TextSize = 18
-ClosePremBtn.Font = Enum.Font.SourceSansBold
-ClosePremBtn.ZIndex = 11
-ClosePremBtn.Parent = PremiumKeyFrame
-
-PremiumTriggerBtn.MouseButton1Click:Connect(function()
-    if not PremiumUnlocked then PremiumKeyFrame.Visible = true end
-end)
-
-ClosePremBtn.MouseButton1Click:Connect(function() PremiumKeyFrame.Visible = false end)
-
-local PremiumFeaturesFrame = Instance.new("Frame")
-PremiumFeaturesFrame.Size = UDim2.new(0, 320, 0, 160)
-PremiumFeaturesFrame.Position = UDim2.new(0, 5, 0, 140)
-PremiumFeaturesFrame.BackgroundTransparency = 1
-PremiumFeaturesFrame.Visible = false
-PremiumFeaturesFrame.Parent = RightTab
-
-local purpleColor = Color3.fromRGB(186, 85, 211)
-CreateCheckBox("AimBody (Khóa thân mục tiêu)", UDim2.new(0, 0, 0, 0), PremiumFeaturesFrame, function(val)
-    AimbotActive = val
-    if val then AimMode = "aimBody" end
-end, purpleColor)
-
-CreateCheckBox("AimHead (Khóa đầu mục tiêu)", UDim2.new(0, 0, 0, 22), PremiumFeaturesFrame, function(val)
-    AimbotActive = val
-    if val then AimMode = "aimHead" end
-end, purpleColor)
-
-CreateCheckBox("SuperWin (Auto khóa cố định sau lưng)", UDim2.new(0, 0, 0, 44), PremiumFeaturesFrame, function(val)
-    SuperWinEnabled = val
-    if not val then CurrentSuperWinTarget = nil end
-end, purpleColor)
-
-CreateCheckBox("Thanh Diệu (Bá chủ tầm nhìn)", UDim2.new(0, 0, 0, 66), PremiumFeaturesFrame, function(val)
-    ThanhDieuCam = val
-end, purpleColor)
-
-CreateCheckBox("RainbowGun (Súng cầu vồng Full Mesh)", UDim2.new(0, 0, 0, 88), PremiumFeaturesFrame, function(val)
-    GunRainbowEnabled = val
-end, purpleColor)
-
-CreateCheckBox("Ghost Mode (Tàng hình linh hồn)", UDim2.new(0, 0, 0, 110), PremiumFeaturesFrame, function(val)
-    GhostEnabled = val
-    local char = LocalPlayer.Character
-    if char then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                part.Transparency = val and 0.9 or 0
-            elseif part:IsA("Decal") then
-                part.Transparency = val and 1 or 0
-            elseif part:IsA("Accessory") or part:IsA("Tool") then
-                for _, p in pairs(part:GetDescendants()) do
-                    if p:IsA("BasePart") then p.Transparency = val and 0.9 or 0 end
+                    if distance <= shortestDistance and IsVisible(targetHitbox) then
+                        shortestDistance = distance
+                        closestTarget = targetHitbox
+                    end
                 end
             end
         end
     end
-end, purpleColor)
+    return closestTarget
+end
 
-CheckPremBtn.MouseButton1Click:Connect(function()
-    if PremKeyInput.Text == "HaiDon2012" then
-        CheckPremBtn.Text = "THÀNH CÔNG!"
-        PremiumUnlocked = true
-        task.wait(0.5)
-        PremiumKeyFrame.Visible = false
-        PremiumTriggerBtn.Visible = false
-        PremiumFeaturesFrame.Visible = true
-    else
-        CheckPremBtn.Text = "SAI KEY PREMIUM!"
-        task.wait(1)
-        CheckPremBtn.Text = "Kích Hoạt Premium"
+----------------------------------------------------
+-- 6. HỆ THỐNG ESP SỬA LỖI DÂY & ĐẾM BOT/NPC
+----------------------------------------------------
+local ESPCache = {}
+
+local function GetESPObjects(key)
+    if ESPCache[key] then return ESPCache[key] end
+    
+    local line = Instance.new("Frame")
+    line.BorderSizePixel = 0
+    line.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    line.Parent = ScreenGui
+
+    local box = Instance.new("Frame")
+    box.BackgroundTransparency = 1
+    box.BorderColor3 = Color3.fromRGB(0, 255, 170)
+    box.BorderSizePixel = 1.5
+    box.Parent = ScreenGui
+
+    local nameText = Instance.new("TextLabel")
+    nameText.BackgroundTransparency = 1
+    nameText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameText.Font = Enum.Font.GothamBold
+    nameText.TextSize = 10
+    nameText.Parent = box
+
+    local healthBg = Instance.new("Frame")
+    healthBg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    healthBg.BorderSizePixel = 0
+    healthBg.Parent = box
+
+    local healthFill = Instance.new("Frame")
+    healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+    healthFill.BorderSizePixel = 0
+    healthFill.Parent = healthBg
+
+    local objects = {Line = line, Box = box, Name = nameText, HealthBg = healthBg, HealthFill = healthFill}
+    ESPCache[key] = objects
+    return objects
+end
+
+local function HideESP(key)
+    if ESPCache[key] then
+        ESPCache[key].Line.Visible = false
+        ESPCache[key].Box.Visible = false
     end
+end
+
+RunService.RenderStepped:Connect(function()
+    if not Settings.ESP then 
+        CounterLabel.Visible = false
+        for key, _ in pairs(ESPCache) do HideESP(key) end
+        return 
+    end
+
+    local playerCount = 0
+    local botCount = 0
+    local screenCenterBottom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+
+    -- Thu thập danh sách Character (bao gồm Người chơi và Bot/NPC)
+    local targets = {}
+    
+    for _, model in ipairs(Workspace:GetDescendants()) do
+        if model:IsA("Model") and model ~= LocalPlayer.Character then
+            local humanoid = model:FindFirstChildOfClass("Humanoid")
+            local hrp = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+            
+            if humanoid and hrp and humanoid.Health > 0 then
+                local player = Players:GetPlayerFromCharacter(model)
+                local isBot = (player == nil)
+                
+                table.insert(targets, {
+                    Model = model,
+                    HRP = hrp,
+                    Head = model:FindFirstChild("Head") or hrp,
+                    Humanoid = humanoid,
+                    Name = isBot and ("[BOT] " .. model.Name) or player.Name,
+                    IsBot = isBot,
+                    Key = model
+                })
+            end
+        end
+    end
+
+    for _, target in ipairs(targets) do
+        local hrpPos, onScreen = Camera:WorldToViewportPoint(target.HRP.Position)
+
+        if onScreen then
+            if target.IsBot then botCount = botCount + 1 else playerCount = playerCount + 1 end
+            local esp = GetESPObjects(target.Key)
+
+            -- 1. SỬA LỖI DÂY NỐI (Vẽ chính xác từ chính giữa phía dưới màn hình lên Target)
+            local target2D = Vector2.new(hrpPos.X, hrpPos.Y)
+            local dist = (target2D - screenCenterBottom).Magnitude
+            local angle = math.deg(math.atan2(target2D.Y - screenCenterBottom.Y, target2D.X - screenCenterBottom.X))
+
+            esp.Line.Size = UDim2.new(0, dist, 0, 1)
+            esp.Line.Position = UDim2.new(0, screenCenterBottom.X, 0, screenCenterBottom.Y)
+            esp.Line.AnchorPoint = Vector2.new(0, 0.5)
+            esp.Line.Rotation = angle
+            esp.Line.BackgroundColor3 = target.IsBot and Color3.fromRGB(255, 170, 0) or Color3.fromRGB(255, 50, 50)
+            esp.Line.Visible = true
+
+            -- 2. Box Bounding Tỷ lệ
+            local headPos = Camera:WorldToViewportPoint(target.Head.Position + Vector3.new(0, 0.5, 0))
+            local legPos = Camera:WorldToViewportPoint(target.HRP.Position - Vector3.new(0, 3, 0))
+            local height = math.abs(headPos.Y - legPos.Y)
+            local width = height * 0.65
+
+            esp.Box.Size = UDim2.new(0, width, 0, height)
+            esp.Box.Position = UDim2.new(0, hrpPos.X - (width / 2), 0, headPos.Y)
+            esp.Box.BorderColor3 = target.IsBot and Color3.fromRGB(255, 170, 0) or Color3.fromRGB(0, 255, 170)
+            esp.Box.Visible = true
+
+            -- 3. Name & Health
+            esp.Name.Size = UDim2.new(1, 0, 0, 14)
+            esp.Name.Position = UDim2.new(0, 0, 0, -16)
+            esp.Name.Text = target.Name
+
+            esp.HealthBg.Size = UDim2.new(0, 3, 1, 0)
+            esp.HealthBg.Position = UDim2.new(0, -6, 0, 0)
+
+            local hpPercent = math.clamp(target.Humanoid.Health / target.Humanoid.MaxHealth, 0, 1)
+            esp.HealthFill.Size = UDim2.new(1, 0, hpPercent, 0)
+                        esp.HealthFill.Position = UDim2.new(0, 0, 1 - hpPercent, 0)
+            esp.HealthFill.BackgroundColor3 = Color3.fromHSV(hpPercent * 0.3, 1, 1)
+        else
+            HideESP(target.Key)
+        end
+    end
+
+    -- Cập nhật bảng đếm số lượng Player và Bot trên màn hình
+    CounterLabel.Text = string.format("PLAYERS: %d | BOTS: %d", playerCount, botCount)
 end)
 
---===================================================================================--
---                            HỆ THỐNG PLAYERKILLER LOGIC                             --
---===================================================================================--
-local function TrackPlayerKills(targetPlayer)
-    targetPlayer.CharacterAdded:Connect(function(char)
-        local hum = char:WaitForChild("Humanoid", 5)
-        if hum then
-            hum.Died:Connect(function()
-                if CurrentSuperWinTarget == targetPlayer then CurrentSuperWinTarget = nil end
-                local creator = hum:FindFirstChild("creator")
-                if creator and creator.Value == LocalPlayer then
-                    KillsCounter = KillsCounter + 1
-                    PlayerKillerLabel.Text = "PlayerKiller: [" .. KillsCounter .. "]"
-                else
-                    if PremiumUnlocked and SuperWinEnabled then
-                        local distance = (char.PrimaryPart and LocalPlayer.Character and LocalPlayer.Character.PrimaryPart) and (char.PrimaryPart.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude or math.huge
-                        if distance < 15 then
-                            KillsCounter = KillsCounter + 1
-                            PlayerKillerLabel.Text = "PlayerKiller: [" .. KillsCounter .. "]"
+----------------------------------------------------
+-- 7. AUTO KILL LOGIC (VÒNG LẶP QUÉT VÀ XỬ LÝ TARGET)
+----------------------------------------------------
+task.spawn(function()
+    while task.wait(0.1) do
+        if Settings.AutoKill then
+            pcall(function()
+                local character = LocalPlayer.Character
+                if not character then return end
+
+                local currentWeapon = character:FindFirstChildOfClass("Tool")
+                if not currentWeapon then return end
+
+                -- Tìm đối thủ gần nhất trong Workspace
+                for _, model in ipairs(Workspace:GetDescendants()) do
+                    if model:IsA("Model") and model ~= character then
+                        local humanoid = model:FindFirstChildOfClass("Humanoid")
+                        local targetHead = model:FindFirstChild("Head") or model:FindFirstChild("HumanoidRootPart")
+
+                        if humanoid and targetHead and humanoid.Health > 0 then
+                            -- Gửi Signal/Event bắn nếu game hỗ trợ RemoteEvent
+                            if Eventos and Eventos:FindFirstChild("Shoot") then
+                                Eventos.Shoot:FireServer(targetHead.Position, currentWeapon)
+                            elseif Eventos and Eventos:FindFirstChild("Hit") then
+                                Eventos.Hit:FireServer(humanoid, targetHead)
+                            end
                         end
                     end
                 end
             end)
         end
+    end
+end)
+
+----------------------------------------------------
+-- 8. NO RELOAD & FAST PARACHUTE LOGIC
+----------------------------------------------------
+-- Xử lý Fast Parachute (Tăng tốc độ rơi khi nhảy dù)
+RunService.Heartbeat:Connect(function()
+    if Settings.FastParachute and LocalPlayer.Character then
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and hrp.Velocity.Y < -5 then
+            -- Áp dụng lực kéo xuống để tiếp đất nhanh hơn
+            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, -120, hrp.AssemblyLinearVelocity.Z)
+        end
+    end
+end)
+
+-- Xử lý No Reload Delay (Xóa bỏ delay nạp đạn của vũ khí)
+LocalPlayer.CharacterAdded:Connect(function(char)
+    char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") and Settings.NoReload then
+            local config = child:FindFirstChild("Configuration") or child:FindFirstChild("Settings")
+            if config then
+                local reloadTime = config:FindFirstChild("ReloadTime") or config:FindFirstChild("ReloadDelay")
+                if reloadTime and reloadTime:IsA("NumberValue") then
+                    reloadTime.Value = 0
+                end
+            end
+        end
     end)
-end
-
-for _, p in pairs(Players:GetPlayers()) do
-    if p ~= LocalPlayer then TrackPlayerKills(p) end
-end
-Players.PlayerAdded:Connect(function(p)
-    if p ~= LocalPlayer then TrackPlayerKills(p) end
-end)
-Players.PlayerRemoving:Connect(function(p)
-    if CurrentSuperWinTarget == p then CurrentSuperWinTarget = nil end
 end)
 
---===================================================================================--
---                               VÒNG LẶP CHÍNH & XỬ LÝ GAME                         --
---===================================================================================--
-local esp_lines, esp_boxes = {}, {}
-
-local function GetClosestPlayerToCursor()
-    local closestPlayer = nil
-    local shortestDistance = math.huge
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                local pos, onScreen = Camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
-                if onScreen then
-                    local mousePos = UserInputService:GetMouseLocation()
-                    local distance = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
-                    if distance < shortestDistance then
-                        closestPlayer = p
-                        shortestDistance = distance
-                    end
-                end
-            end
-        end
-    end
-    return closestPlayer
-end
-
-task.spawn(function()
-    while task.wait(0.03) do
-        if PremiumUnlocked and GunRainbowEnabled then
-            local char = LocalPlayer.Character
-            if char then
-                local tool = char:FindFirstChildOfClass("Tool") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChildOfClass("Tool"))
-                if tool then
-                    local hue = (tick() % 3) / 3
-                    local rainbowColor = Color3.fromHSV(hue, 1, 1)
-                    for _, part in pairs(tool:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.Color = rainbowColor
-                            part.Material = Enum.Material.Neon
-                        elseif part:IsA("Texture") or part:IsA("SpecialMesh") or part:IsA("MeshPart") then
-                            pcall(function() part.VertexColor = Vector3.new(rainbowColor.R, rainbowColor.G, rainbowColor.B) end)
-                            pcall(function() part.TextureID = "" end)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    if PremiumUnlocked and ThanhDieuCam then Camera.FieldOfView = 120 else Camera.FieldOfView = 70 end
-    
-    if PremiumUnlocked and AimbotActive then
-        local target = GetClosestPlayerToCursor()
-        if target and target.Character then
-            local partToAim = AimMode == "aimHead" and target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
-            if partToAim then Camera.CFrame = CFrame.new(Camera.CFrame.Position, partToAim.Position) end
-        end
-    end
-    
-    if PremiumUnlocked and SuperWinEnabled then
-        if not CurrentSuperWinTarget or not CurrentSuperWinTarget.Character or not CurrentSuperWinTarget.Character:FindFirstChild("HumanoidRootPart") or not CurrentSuperWinTarget.Character:FindFirstChildOfClass("Humanoid") or CurrentSuperWinTarget.Character:FindFirstChildOfClass("Humanoid").Health <= 0 then
-            CurrentSuperWinTarget = GetClosestPlayerToCursor()
-        end
-        
-        if CurrentSuperWinTarget and CurrentSuperWinTarget.Character and CurrentSuperWinTarget.Character:FindFirstChild("HumanoidRootPart") then
-            local localChar = LocalPlayer.Character
-            if localChar and localChar:FindFirstChild("HumanoidRootPart") then
-                localChar.HumanoidRootPart.CFrame = CurrentSuperWinTarget.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(0.02) do
-        if PremiumUnlocked and GhostEnabled then
-            local char = LocalPlayer.Character
-            if char then
-                for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and part.Transparency ~= 0.9 then
-                        part.Transparency = 0.9
-                    end
-                end
-            end
-        end
-
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local hrp = p.Character.HumanoidRootPart
-                local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                if HitboxEnabled and not HitboxLocked and hum and hum.Health > 0 then
-                    hrp.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
-                    hrp.Color = Color3.fromRGB(0, 255, 0)
-                    hrp.Transparency = 0.6
-                    hrp.Material = Enum.Material.Neon
-                    hrp.CanCollide = false
-                else
-                    if hrp.Size ~= Vector3.new(2, 2, 1) then
-                        hrp.Size = Vector3.new(2, 2, 1)
-                        hrp.Transparency = 1
-                    end
-                end
-                if ESPEnabled and hum and hum.Health > 0 then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-                    if onScreen then
-                        if not esp_lines[p] then
-                            local line = Drawing.new("Line")
-                            line.Color = Color3.fromRGB(0, 255, 0)
-                            line.Thickness = 1.5
-                            esp_lines[p] = line
-                        end
-                        esp_lines[p].From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                        esp_lines[p].To = Vector2.new(screenPos.X, screenPos.Y)
-                        esp_lines[p].Visible = true
-                        if not esp_boxes[p] then
-                            local b = Instance.new("Frame")
-                            b.Size = UDim2.new(0, 50, 0, 70)
-                            b.BackgroundTransparency = 1
-                            b.BorderSizePixel = 0
-                            local stroke = Instance.new("UIStroke")
-                            stroke.Color = Color3.fromRGB(255, 255, 255)
-                            stroke.Thickness = 1.5
-                            stroke.Parent = b
-                            local nameTag = Instance.new("TextLabel")
-                            nameTag.Size = UDim2.new(1, 40, 0, 20)
-                            nameTag.Position = UDim2.new(0, -20, 0, -25)
-                            nameTag.Text = p.Name
-                            nameTag.TextColor3 = Color3.fromRGB(255, 105, 180)
-                            nameTag.BackgroundTransparency = 1
-                            nameTag.Font = Enum.Font.SourceSansBold
-                            nameTag.TextSize = 12
-                            nameTag.Parent = b
-                            b.Parent = MainGui
-                            esp_boxes[p] = b
-                        end
-                        esp_boxes[p].Position = UDim2.new(0, screenPos.X - 25, 0, screenPos.Y - 35)
-                        esp_boxes[p].Visible = true
-                    else
-                        if esp_lines[p] then esp_lines[p].Visible = false end
-                        if esp_boxes[p] then esp_boxes[p].Visible = false end
-                    end
-                else
-                    if esp_lines[p] then esp_lines[p].Visible = false end
-                    if esp_boxes[p] then esp_boxes[p].Visible = false end
-                end
-            end
-        end
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(p)
-    if esp_lines[p] then esp_lines[p]:Remove() esp_lines[p] = nil end
-    if esp_boxes[p] then esp_boxes[p]:Destroy() esp_boxes[p] = nil end
-end)
+----------------------------------------------------
+-- 9. KHỞI TẠO VÀ DỌN DẸP KHI THOÁT
+----------------------------------------------------
+print("UltraCheatHub V2 Loaded Successfully!")

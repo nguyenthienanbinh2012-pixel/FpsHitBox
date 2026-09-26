@@ -1,4 +1,4 @@
--- Paint Plus v2.4 Deadrails
+-- Paint Plus v2.5 Deadrails
 -- Author: SharkTeam Mobile
 -- Mobile friendly
 
@@ -121,7 +121,6 @@ local FeatureStates = {
     ScanVampireKnife = false,
     SLX_Lite = false,
     SpeedPlus = false,
-    ThirdPerson = false,
     BypassPromitixy = false,
     SpeedProximity = false,
     AutoTravelTrain = false,
@@ -139,7 +138,6 @@ local SpeedMonitorThread = nil
 local FlyConnection = nil
 local FlyVelocity = nil
 local SLX_Lite_Loaded = false
-local ThirdPersonConnection = nil
 local BypassConnection = nil
 local SpeedProximityThread = nil
 local AutoTravelConnection = nil
@@ -154,12 +152,6 @@ local EspBoxFolder = nil
 local EspNpcFolder = nil
 local EspBillboardFolder = nil
 
-local OriginalCameraMaxZoom = nil
-local OriginalCameraMinZoom = nil
-local OriginalCameraMode = nil
-local OriginalCameraType = nil
-local OriginalCameraSubject = nil
-local OriginalCameraFOV = nil
 local OriginalJumpPower = nil
 local OriginalJumpHeight = nil
 local OriginalUseJumpPower = nil
@@ -167,6 +159,8 @@ local OriginalUseJumpPower = nil
 local TrainTeleport = {
     SavedSeat = nil,
     SavedName = nil,
+    SavedPath = nil,
+    SavedModel = nil,
     IsTeleporting = false,
     HasSaved = false
 }
@@ -219,7 +213,7 @@ local Window
 do
     local ok, err = pcall(function()
         Window = WindUI:CreateWindow({
-            Title = "Paint Plus v2.4 Deadrails",
+            Title = "Paint Plus v2.5 Deadrails",
             Author = "by SharkTeam Mobile",
             Icon = "sword",
             Folder = "PaintPlus",
@@ -488,11 +482,38 @@ local function LoadSavedSeat()
         warn("[PaintPlus] Loi doc file ghe: " .. tostring(data))
         return false
     end
-    if not data or not data.Name then return false end
-    local seat = Workspace:FindFirstChild(data.Name, true)
+    if not data then return false end
+    local seat = nil
+    if data.Path then
+        local ok2, found = pcall(function()
+            return Workspace:FindFirstChild(data.Path, true)
+        end)
+        if ok2 and found and (found:IsA("Seat") or found:IsA("VehicleSeat")) then
+            seat = found
+        end
+    end
+    if not seat and data.Model and data.Name then
+        local model = Workspace:FindFirstChild(data.Model, true)
+        if model then
+            for _, item in ipairs(model:GetDescendants()) do
+                if (item:IsA("Seat") or item:IsA("VehicleSeat")) and item.Name == data.Name then
+                    seat = item
+                    break
+                end
+            end
+        end
+    end
+    if not seat and data.Name then
+        local found = Workspace:FindFirstChild(data.Name, true)
+        if found and (found:IsA("Seat") or found:IsA("VehicleSeat")) then
+            seat = found
+        end
+    end
     if seat then
         TrainTeleport.SavedSeat = seat
-        TrainTeleport.SavedName = data.Name
+        TrainTeleport.SavedName = seat.Name
+        TrainTeleport.SavedPath = data.Path or seat:GetFullName()
+        TrainTeleport.SavedModel = data.Model
         TrainTeleport.HasSaved = true
         return true
     end
@@ -629,7 +650,7 @@ SafeButton(ResetSection, {
             warn("[PaintPlus] Loi reset: " .. tostring(err))
             SafeNotify("Reset Player", "Lỗi: " .. tostring(err), 3)
             return
-        end
+ end
         SafeNotify("Reset Player", "Đã đặt lại nhân vật", 3)
     end
 })
@@ -639,7 +660,7 @@ local SaveSection = SafeSection(Tabs.Train, "Lưu Và Di Chuyển")
 
 SafeButton(SaveSection, {
     Title = "Lưu Vị Trí Ghế",
-    Desc = "Lưu ghế đang ngồi",
+    Desc = "Lưu vĩnh viễn ghế đang ngồi (đè lên ghế cũ)",
     Callback = function()
         local char = LocalPlayer.Character
         if not char then
@@ -653,27 +674,36 @@ SafeButton(SaveSection, {
         end
         local seat = humanoid.SeatPart
         if not seat then
-            SafeNotify("Lưu Ghế", "Chưa ngế", 3)
+            SafeNotify("Lưu Ghế", "Chưa ngồi lên tàu", 3)
             return
         end
+        local model = seat:FindFirstAncestorOfClass("Model")
+        local modelPath = model and model.Name or ""
+        local fullPath = seat:GetFullName()
         TrainTeleport.SavedSeat = seat
         TrainTeleport.SavedName = seat.Name
+        TrainTeleport.SavedPath = fullPath
+        TrainTeleport.SavedModel = modelPath
         TrainTeleport.HasSaved = true
         local ok, err = pcall(function()
             if writefile then
-                writefile("PaintPlus_TrainSeat.json", HttpService:JSONEncode({Name = seat.Name}))
+                writefile("PaintPlus_TrainSeat.json", HttpService:JSONEncode({
+                    Name = seat.Name,
+                    Path = fullPath,
+                    Model = modelPath
+                }))
             end
         end)
         if not ok then
             warn("[PaintPlus] Loi ghi file ghe: " .. tostring(err))
         end
-        SafeNotify("Lưu Ghế", "Đã lưu vị trí ghế: " .. seat.Name, 3)
+        SafeNotify("Lưu Ghế", "Đã lưu vĩnh viễn: " .. fullPath, 4)
     end
 })
 
 SafeButton(SaveSection, {
     Title = "Di Chuyển Về Tàu",
-    Desc = "Giới hạn 3200 studs",
+    Desc = "Giới hạn 3200 studs, về đúng ghế đã lưu",
     Callback = function()
         if not TrainTeleport.HasSaved then
             if not LoadSavedSeat() then
@@ -688,6 +718,10 @@ SafeButton(SaveSection, {
                 return
             end
             seat = TrainTeleport.SavedSeat
+        end
+        if not seat:IsA("Seat") and not seat:IsA("VehicleSeat") then
+            SafeNotify("Di Chuyển", "Vị trí lưu không phải ghế", 3)
+            return
         end
         local char = LocalPlayer.Character
         if not char then
@@ -845,106 +879,133 @@ local function StopFlyTrain()
         end)
         FlyTrainSeat = nil
     end
+    pcall(function()
+        local char = LocalPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.PlatformStand = false
+            end
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Anchored then
+                    part.Anchored = false
+                end
+            end
+        end
+    end)
 end
 
 SafeToggle(FlyTrainSection, {
     Title = "Fly Train",
-    Desc = "Bay về tàu, giới hạn 8000 studs",
+    Desc = "Bay về tàu, giới hạn 8000 studs, chống văng",
     Value = false,
     Callback = function(state)
         if state then
             local seat = GetTargetSeat()
             if not seat then
                 SafeNotify("Fly Train", "Chưa lưu vị trí ghế", 3)
-                FeatureStates.FlyTrain = false
                 return
             end
             local char = LocalPlayer.Character
             if not char then
                 SafeNotify("Fly Train", "Không tìm thấy nhân vật", 3)
-                FeatureStates.FlyTrain = false
                 return
             end
             local humanoid = char:FindFirstChildOfClass("Humanoid")
             local root = char:FindFirstChild("HumanoidRootPart")
             if not humanoid or not root then
                 SafeNotify("Fly Train", "Không tìm thấy nhân vật", 3)
-                FeatureStates.FlyTrain = false
                 return
             end
             local dist = (root.Position - seat.Position).Magnitude
             if dist > MAX_FLY_TRAIN_DISTANCE then
                 SafeNotify("Fly Train", "Tàu ở quá xa (trên 8000 studs)", 3)
-                FeatureStates.FlyTrain = false
                 return
             end
             FeatureStates.FlyTrain = true
+            SafeNotify("Fly Train", "Đang bay về tàu...", 3)
             FlyTrainThread = task.spawn(function()
-                local virtualSeat = Instance.new("Part")
-                virtualSeat.Name = "PaintPlus_VirtualSeat"
-                virtualSeat.Anchored = true
-                virtualSeat.CanCollide = false
-                virtualSeat.Transparency = 1
-                virtualSeat.Size = Vector3.new(1, 1, 1)
-                virtualSeat.CFrame = root.CFrame
-                virtualSeat.Parent = Workspace
-                FlyTrainSeat = virtualSeat
-                while FeatureStates.FlyTrain and not IsUnloading do
-                    if not char or not char.Parent then break end
-                    if not root or not root.Parent then break end
-                    if not seat or not seat.Parent then break end
-                    local dir = (seat.Position - virtualSeat.Position)
-                    local distNow = dir.Magnitude
-                    if distNow <= 5 then break end
-                    local step = dir.Unit * FlyTrainSpeed * task.wait()
-                    virtualSeat.CFrame = CFrame.new(virtualSeat.Position + step)
-                    local ok, err = pcall(function()
-                        root.CFrame = virtualSeat.CFrame
-                        for _, part in ipairs(char:GetDescendants()) do
-                            if part:IsA("BasePart") then
-                                part.AssemblyLinearVelocity = Vector3.zero
-                                part.AssemblyAngularVelocity = Vector3.zero
-                            end
-                        end
-                    end)
-                    if not ok then
-                        warn("[PaintPlus] Loi FlyTrain: " .. tostring(err))
+                pcall(function()
+                    humanoid.Sit = false
+                    humanoid.PlatformStand = true
+                end)
+                task.wait(0.05)
+                local anchoredStates = {}
+                for _, part in ipairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        anchoredStates[part] = part.Anchored
+                        part.Anchored = true
                     end
                 end
-                if FeatureStates.FlyTrain and not IsUnloading then
+                local flySpeed = FlyTrainSpeed
+                local lastPos = root.Position
+                local stuckTime = 0
+                while FeatureStates.FlyTrain and not IsUnloading do
+                    if not char.Parent then break end
+                    if not root.Parent then break end
+                    if not seat.Parent then break end
+                    local currentPos = root.Position
+                    local targetPos = seat.Position + Vector3.new(0, 2, 0)
+                    local delta = targetPos - currentPos
+                    local distance = delta.Magnitude
+                    if distance <= 3 then break end
+                    local moved = (currentPos - lastPos).Magnitude
+                    if moved < 0.1 then
+                        stuckTime = stuckTime + 0.05
+                        if stuckTime > 1 then
+                            SafeNotify("Fly Train", "Bị kẹt, hủy bay", 3)
+                            break
+                        end
+                    else
+                        stuckTime = 0
+                    end
+                    lastPos = currentPos
+                    local step = math.min(distance, flySpeed * 0.05)
+                    local newPos = currentPos + delta.Unit * step
                     pcall(function()
-                        humanoid.Sit = false
+                        root.CFrame = CFrame.new(newPos, newPos + Camera.CFrame.LookVector)
                     end)
-                    task.wait(0.1)
+                    task.wait(0.05)
+                end
+                for part, wasAnchored in pairs(anchoredStates) do
+                    if part and part.Parent then
+                        pcall(function()
+                            part.Anchored = wasAnchored
+                        end)
+                    end
+                end
+                pcall(function()
+                    humanoid.PlatformStand = false
+                end)
+                task.wait(0.1)
+                if FeatureStates.FlyTrain and not IsUnloading and seat.Parent then
+                    pcall(function()
+                        root.CFrame = CFrame.new(seat.Position + Vector3.new(0, 2, 0))
+                    end)
+                    task.wait(0.05)
                     pcall(function()
                         seat:Sit(humanoid)
                         humanoid.Sit = true
                     end)
-                    local lockEnd = tick() + 0.5
+                    local lockEnd = tick() + 1
                     while tick() < lockEnd do
                         pcall(function()
-                            root.CFrame = seat.CFrame
+                            if root and root.Parent and seat and seat.Parent then
+                                root.CFrame = CFrame.new(seat.Position + Vector3.new(0, 1.5, 0))
+                                root.AssemblyLinearVelocity = Vector3.zero
+                                root.AssemblyAngularVelocity = Vector3.zero
+                            end
                         end)
-                        RunService.Heartbeat:Wait()
+                        task.wait()
                     end
-                    pcall(function()
-                        virtualSeat:Destroy()
-                    end)
-                    FlyTrainSeat = nil
                     SafeNotify("Fly Train", "Đã bay về tàu và ngồi vào ghế", 3)
+                else
+                    SafeNotify("Fly Train", "Đã hủy bay", 3)
                 end
             end)
-            SafeNotify("Fly Train", "Đã bật bay về tàu", 3)
         else
             StopFlyTrain()
-            local char = LocalPlayer.Character
-            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                pcall(function()
-                    humanoid.Sit = false
-                end)
-            end
-            SafeNotify("Fly Train", "Đã hủy bay về tàu", 3)
+            SafeNotify("Fly Train", "Đã tắt bay về tàu", 3)
         end
     end
 })
@@ -1321,89 +1382,6 @@ SafeInput(SpeedSection, {
     end
 })
 
-local ViewSection = SafeSection(Tabs.Features, "Góc Nhìn")
-
-local function CleanupThirdPerson()
-    if ThirdPersonConnection then
-        pcall(function()
-            ThirdPersonConnection:Disconnect()
-        end)
-        ThirdPersonConnection = nil
-    end
-end
-
-local function ApplyThirdPerson()
-    CleanupThirdPerson()
-    pcall(function()
-        OriginalCameraMaxZoom = LocalPlayer.CameraMaxZoomDistance
-        OriginalCameraMinZoom = LocalPlayer.CameraMinZoomDistance
-        OriginalCameraMode = LocalPlayer.CameraMode
-        OriginalCameraType = Camera.CameraType
-        OriginalCameraSubject = Camera.CameraSubject
-        OriginalCameraFOV = Camera.FieldOfView
-    end)
-    pcall(function()
-        LocalPlayer.CameraMode = Enum.CameraMode.Classic
-        LocalPlayer.CameraMaxZoomDistance = 20
-        LocalPlayer.CameraMinZoomDistance = 8
-        Camera.CameraType = Enum.CameraType.Custom
-        local char = LocalPlayer.Character
-        if char then
-            local humanoid = char:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                Camera.CameraSubject = humanoid
-            end
-        end
-    end)
-end
-
-local function RemoveThirdPerson()
-    CleanupThirdPerson()
-    pcall(function()
-        if OriginalCameraMaxZoom then
-            LocalPlayer.CameraMaxZoomDistance = OriginalCameraMaxZoom
-        end
-        if OriginalCameraMinZoom then
-            LocalPlayer.CameraMinZoomDistance = OriginalCameraMinZoom
-        end
-        if OriginalCameraMode then
-            LocalPlayer.CameraMode = OriginalCameraMode
-        end
-        if OriginalCameraType then
-            Camera.CameraType = OriginalCameraType
-        end
-        if OriginalCameraSubject then
-            Camera.CameraSubject = OriginalCameraSubject
-        end
-        if OriginalCameraFOV then
-            Camera.FieldOfView = OriginalCameraFOV
-        end
-    end)
-end
-
-SafeToggle(ViewSection, {
-    Title = "Third Person",
-    Desc = "Góc nhìn thứ ba",
-    Value = false,
-    Callback = function(state)
-        if state then
-            FeatureStates.ThirdPerson = true
-            local ok, err = pcall(ApplyThirdPerson)
-            if not ok then
-                warn("[PaintPlus] Loi ThirdPerson: " .. tostring(err))
-            end
-            SafeNotify("Third Person", "Đã bật góc nhìn thứ ba", 3)
-        else
-            FeatureStates.ThirdPerson = false
-            local ok, err = pcall(RemoveThirdPerson)
-            if not ok then
-                warn("[PaintPlus] Loi RemoveThirdPerson: " .. tostring(err))
-            end
-            SafeNotify("Third Person", "Đã tắt góc nhìn thứ ba", 3)
-        end
-    end
-})
-
 local UtilSection = SafeSection(Tabs.Features, "Tiện Ích")
 
 local function StopBypassPromitixy()
@@ -1742,7 +1720,7 @@ local function StartEspHorseBox()
                     task.wait(0.5)
                     return
                 end
-                local myPos = myRoot.Position
+    local myPos = myRoot.Position
                 local currentTargets = {}
                 local descendants = Workspace:GetDescendants()
                 local batch = {}
@@ -1960,8 +1938,8 @@ local function ApplyHighJump()
         OriginalUseJumpPower = humanoid.UseJumpPower
     end
     humanoid.UseJumpPower = true
-    humanoid.JumpPower = 100
-    humanoid.JumpHeight = 14
+    humanoid.JumpPower = 80
+    humanoid.JumpHeight = 13.5
     return true
 end
 
@@ -1984,7 +1962,7 @@ end
 local HighJumpToggle
 HighJumpToggle = SafeToggle(StatsSection, {
     Title = "Nhảy Cao Hơn",
-    Desc = "Tăng lực nhảy",
+    Desc = "JumpHeight 13.5, JumpPower 80",
     Value = false,
     Callback = function(state)
         if state then
@@ -1998,7 +1976,7 @@ HighJumpToggle = SafeToggle(StatsSection, {
                 end
                 return
             end
-            SafeNotify("Nhảy Cao", "Đã bật nhảy cao hơn", 3)
+            SafeNotify("Nhảy Cao", "Đã bật nhảy cao (13.5)", 3)
         else
             FeatureStates.HighJump = false
             RemoveHighJump()
@@ -2073,7 +2051,7 @@ pcall(function()
 end)
 
 SafeParagraph(InfoSection, {
-    Title = "Paint Plus v2.4",
+    Title = "Paint Plus v2.5",
     Desc = "Tác giả: by SharkTeam Mobile\nTrình thực thi: " .. tostring(executorName) .. "\nKết nối: Shared.Universe.Network.RemoteEvent"
 })
 
@@ -2092,9 +2070,6 @@ local function FullUnload()
     end)
     pcall(function()
         StopFlyTrain()
-    end)
-    pcall(function()
-        RemoveThirdPerson()
     end)
     pcall(function()
         StopBypassPromitixy()
@@ -2159,7 +2134,6 @@ getgenv().PaintPlus_Unload = function()
     DisconnectAllConnections()
     StopVehicleFly()
     StopFlyTrain()
-    RemoveThirdPerson()
     StopBypassPromitixy()
     StopSpeedProximity()
     StopAutoTravelTrain()
@@ -2177,7 +2151,6 @@ local function SetupDeathCleanup(character)
         FeatureStates.PickupAll = false
         FeatureStates.ScanVampireKnife = false
         FeatureStates.SpeedPlus = false
-        FeatureStates.ThirdPerson = false
         FeatureStates.BypassPromitixy = false
         FeatureStates.SpeedProximity = false
         FeatureStates.AutoTravelTrain = false
@@ -2190,7 +2163,6 @@ local function SetupDeathCleanup(character)
         StopSpeedProximity()
         StopAutoTravelTrain()
         RemoveNoClip()
-        RemoveThirdPerson()
         TrainTeleport.IsTeleporting = false
     end)
     RegisterConnection(conn)
@@ -2203,18 +2175,6 @@ end
 local charAddedConn = LocalPlayer.CharacterAdded:Connect(function(character)
     task.wait(1)
     SetupDeathCleanup(character)
-    if FeatureStates.ThirdPerson then
-        pcall(function()
-            LocalPlayer.CameraMode = Enum.CameraMode.Classic
-            LocalPlayer.CameraMaxZoomDistance = 20
-            LocalPlayer.CameraMinZoomDistance = 8
-            Camera.CameraType = Enum.CameraType.Custom
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                Camera.CameraSubject = humanoid
-            end
-        end)
-    end
     if FeatureStates.HighJump then
         pcall(ApplyHighJump)
     end
@@ -2283,6 +2243,6 @@ task.spawn(function()
     if Remotes.Store then count = count + 1 end
     if Remotes.Actionable then count = count + 1 end
     if Remotes.DropTool then count = count + 1 end
-    SafeNotify("Paint Plus v2.4", "Đã tải " .. tostring(count) .. "/4 kết nối", 5)
+    SafeNotify("Paint Plus v2.5", "Đã tải " .. tostring(count) .. "/4 kết nối", 5)
     print("[PaintPlus] Đã tải " .. tostring(count) .. "/4 kết nối")
 end)
